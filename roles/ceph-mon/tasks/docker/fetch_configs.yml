@@ -1,7 +1,7 @@
 ---
 - name: set config and keys paths
   set_fact:
-    ceph_config_keys:
+    ceph_default_keys:
       - /etc/ceph/{{ cluster }}.conf
       - /etc/ceph/{{ cluster }}.client.admin.keyring
       - /etc/ceph/monmap-{{ cluster }}
@@ -9,6 +9,23 @@
       - /var/lib/ceph/bootstrap-osd/{{ cluster }}.keyring
       - /var/lib/ceph/bootstrap-rgw/{{ cluster }}.keyring
       - /var/lib/ceph/bootstrap-mds/{{ cluster }}.keyring
+
+
+- name: add mgr keys to config and keys paths
+  set_fact:
+    tmp_ceph_mgr_keys: /etc/ceph/{{ cluster }}.mgr.{{ hostvars[item]['ansible_hostname'] }}.keyring
+  with_items: "{{ groups[mgr_group_name] }}"
+  register: tmp_ceph_mgr_keys_result
+  when: "{{ groups[mgr_group_name] |length > 0 }}"
+
+- name: convert mgr keys to an array
+  set_fact:
+    ceph_mgr_keys: "{{ tmp_ceph_mgr_keys_result.results | map(attribute='ansible_facts.ceph_mgr_keys') | list }}"
+
+- name: merge mgr keys to config and keys paths
+  set_fact:
+    ceph_config_keys: "{{ ceph_default_keys + ceph_mgr_keys }}"
+  when: "{{ groups[mgr_group_name] |length > 0 }}"
 
 - name: stat for ceph config and keys
   local_action: stat path={{ fetch_directory }}/docker_mon_files/{{ item }}
